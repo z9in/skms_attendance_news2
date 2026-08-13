@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로그인 근태 관리 시스템</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.login-box {
+  width: 100%;
+  max-width: 380px;
+}
+</style>
+</head>
+<body>
+<div class="card login-box">
+<h2 style="text-align: center; margin-bottom: 24px; color: #4f46e5;">근태 관리 시스템</h2>
+<form id="loginForm">
+<div>
+<label style="font-size:0.85rem; font-weight:600; color:#4a5568;">아이디</label>
+<input type="text" id="username" placeholder="아이디를 입력하세요" required>
+</div>
+<div>
+<label style="font-size:0.85rem; font-weight:600; color: #4a5568;">비밀번호</label>
+<input type="password" id="password" placeholder="비밀번호를 입력하세요" required>
+</div>
+<button type="submit" class="btn" style="width: 100%; margin-top: 10px;">로그인</button>
+</form>
+</div>
+<script>
+document.getElementById('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  try {
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.success) {
+      location.href = "/";
+    } else {
+      alert(data.message || '로그인 실패');
+    }
+  } catch (err) {
+    alert('서버와 통신 중 오류가 발생했습니다.');
+  }
+};
+</script>
+</body>
+</html>

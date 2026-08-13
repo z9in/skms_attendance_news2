@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>근태 관리 시스템</title>
+<link rel="stylesheet" href="/style.css">
+<!-- 다음 우편번호 서비스 스크립트 -->
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<style>
+/* 전체 레이아웃 가시성 확장 */
+.container {
+  width: 100% !important;
+  max-width: 1600px !important;
+  padding: 15px !important;
+}
+
+.form-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.form-row input, .form-row select { margin: 0; }
+.pattern-item { background: rgba(255, 255, 255, 0.7); padding: 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
+.checkbox-label { display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
+
+.emp-select-box { display: flex; gap: 2px; margin-bottom: 3px; align-items: center; }
+.btn-del-emp { padding: 0 5px; font-size: 0.75rem; background: #ef4444; color: white; border: none; border-radius: 3px; cursor: pointer; height: 24px; }
+.btn-add-emp { width: 100%; font-size: 0.7rem; background: #e0e7ff; color: #3730a3; border: 1px dashed #6366f1; border-radius: 4px; cursor: pointer; padding: 2px 0; margin-top: 2px; }
+.btn-add-emp:hover { background: #c7d2fe; }
+
+/* 근무편성 테이블 서식 */
+.sched-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.sched-matrix-table th, .sched-matrix-table td {
+  border: 1px solid #000000;
+  text-align: center;
+  vertical-align: middle;
+  padding: 3px 1px;
+  font-size: 0.78rem;
+}
+.sched-matrix-table th {
+  background-color: #f1f5f9;
+  font-weight: bold;
+}
+
+/* 콤보박스 화살표(체크모양) 완벽 제거 및 중앙 정렬 디자인 */
+.sched-pattern-select {
+  width: 100%;
+  height: 26px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  text-align: center;
+  text-align-last: center;
+  background-color: #ffffff;
+  cursor: pointer;
+  /* 화살표 제거 CSS */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+.sched-pattern-select::-ms-expand {
+  display: none; /* IE/Edge 화살표 제거 */
+}
+.sched-pattern-select:focus {
+  border-color: #4f46e5;
+  outline: none;
+  background-color: #e0e7ff;
+}
+
+/* 읽기 전용 셀 스타일 */
+.read-only-cell {
+  font-weight: bold;
+  font-size: 0.82rem;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<!-- 상단 헤더 -->
+<div class="card user-info-bar">
+<div>
+<strong id="userName" style="font-size: 1.1rem;">사용자</strong>님
+<span id="userRole" class="badge badge-success" style="margin-left: 6px;"> 권한 </span>
+<div id="userSiteInfo" style="font-size: 0.85rem; color: #64748b; margin-top: 4px;"></div>
+</div>
+</div>
+<a href="/logout" class="btn btn-secondary btn-sm">로그아웃</a>
+
+<!-- 네비게이션 탭 -->
+<div class="nav-tabs">
+<button class="nav-btn active" id="tab-btn-user" onclick="switchTab('user')">내 근태/출퇴근</button>
+<button class="nav-btn mgr-only" id="tab-btn-dashboard" onclick="switchTab('dashboard')">대시보드</button>
+<button class="nav-btn head-super-only" id="tab-btn-sites" onclick="switchTab('sites')">현장 관리</button>
+<button class="nav-btn head-super-only" id="tab-btn-users" onclick="switchTab('users')">근무자 관리</button>
+<button class="nav-btn mgr-only" id="tab-btn-schedules" onclick="switchTab('schedules')">근무 편성 (달력)</button>
+<button class="nav-btn mgr-only" id="tab-btn-report" onclick="switchTab('report')">근무 상황 기록</button>
+<button class="nav-btn mgr-only" id="tab-btn-attendance" onclick="switchTab('attendance')">근태 현황</button>
+</div>
+
+<!-- 1. [사용자] 출퇴근 -->
+<div id="tab-user" class="tab-content active">
+<div class="card">
+<h3>오늘의 근무 정보</h3>
+<div id="todayScheduleInfo" style="padding: 10px 0;">근무 정보를 불러오는 중...</div>
+<div style="margin-top: 15px; display: flex; gap: 12px;">
+<button class="btn" style="flex: 1; padding: 16px;" onclick="registerAttendance('in')">출근하기</button>
+<button class="btn btn-secondary" style="flex: 1; padding: 16px;" onclick="registerAttendance('out')">퇴근하기</button>
+</div>
+</div>
+<div class="card">
+<h3>이번 달 내 근태 기록</h3>
+<div class="table-responsive">
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>출근시간</th>
+<th>퇴근시간</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody id="userAttendanceLogs"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- 2. 대시보드 -->
+<div id="tab-dashboard" class="tab-content" style="display:none;">
+<div class="card">
+<h3>오늘의 근무 현황 요약</h3>
+<div style="display: flex; gap: 15px; text-align: center;">
+<div style="flex: 1; padding: 20px; background: #e0e7ff; border-radius: 12px;">
+<div style="font-size: 0.85rem; color: #4338ca;">출근 대상</div>
+<div style="font-size: 1.8rem; font-weight: bold; color: #3730a3;" id="dashTarget">0</div>
+</div>
+<div style="flex: 1; padding: 20px; background: #dcfce7; border-radius: 12px;">
+<div style="font-size: 0.85rem; color: #15803d;">출근 완료</div>
+<div style="font-size: 1.8rem; font-weight: bold; color: #166534;" id="dashCompleted">0</div>
+</div>
+<div style="flex: 1; padding: 20px; background: #fee2e2; border-radius: 12px;">
+<div style="font-size: 0.85rem; color: #b91c1c;">미출근 / 지각</div>
+<div style="font-size: 1.8rem; font-weight: bold; color: #991b1b;" id="dashLate">0</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 3. 현장 관리 -->
+<div id="tab-sites" class="tab-content" style="display:none;">
+<div class="card">
+<h3>현장 등록/수정</h3>
+<form id="siteForm">
+<input type="hidden" id="siteId">
+<div class="form-row">
+<input type="text" id="siteName" placeholder="현장명 (예: 한밭대학교)" required style="flex: 1;">
+</div>
+<div class="form-row">
+<input type="text" id="siteAddress" placeholder="주소를 입력하거나 우측 검색 버튼을 누르세요" required style="flex: 1;">
+<button type="button" class="btn btn-secondary btn-sm" onclick="searchAddress()">주소 검색</button>
+</div>
+<div class="form-row">
+<input type="number" step="any" id="siteLat" placeholder="위도 (예: 36.3504)" required style="flex: 1;">
+<input type="number" step="any" id="siteLng" placeholder="경도 (예: 127.3848)" required style="flex: 1;">
+</div>
+<h4 style="margin-top: 18px; margin-bottom: 8px;">근무 패턴 설정</h4>
+<div id="patternList"></div>
+<button type="button" class="btn btn-secondary btn-sm" onclick="addPatternInput()">+ 패턴 추가</button>
+<button type="submit" class="btn" style="margin-top: 20px; width: 100%;">현장 저장</button>
+</form>
+</div>
+<div class="card">
+<h3>등록된 현장 목록</h3>
+<div class="table-responsive">
+<table>
+<thead>
+<tr>
+<th>현장명</th>
+<th>주소</th>
+<th>위도/경도</th>
+<th>패턴 수</th>
+<th>관리</th>
+</tr>
+</thead>
+<tbody id="siteTableBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- 4. 근무자 관리 -->
+<div id="tab-users" class="tab-content" style="display:none;">
+<div class="card">
+<h3 id="userFormTitle">근무자 등록</h3>
+<form id="userForm">
+<input type="hidden" id="isEdit" value="false">
+<div class="form-row">
+<input type="text" id="userId" placeholder="사번 / 식별자" required style="flex: 1;">
+<input type="text" id="userUsername" placeholder="로그인 아이디" required style="flex: 1;">
+</div>
+<div class="form-row">
+<input type="password" id="userPassword" placeholder="비밀번호" required style="flex: 1;">
+<input type="text" id="userNameInput" placeholder="이름" required style="flex: 1;">
+</div>
+<div class="form-row">
+<input type="text" id="userDept" placeholder="부서 (예: 상황실)" style="flex: 1;">
+<input type="text" id="userPos" placeholder="직급 (예: 대원)" style="flex: 1;">
+</div>
+<div class="form-row">
+<input type="text" id="userBirthDate" placeholder="생년월일 (YY.MM.DD)" style="flex: 1;">
+<input type="text" id="userAssignedDate" placeholder="배치일자 (YY.MM.DD)" style="flex: 1;">
+<input type="text" id="userResignedDate" placeholder="폐지일자 (YY.MM.DD)" style="flex: 1;">
+</div>
+<div class="form-row">
+<select id="userSiteSelect" style="flex: 1;">
+<option value="">소속 현장 선택</option>
+</select>
+<select id="userRoleSelect" style="flex: 1;" required>
+<option value="worker">일반 근무자</option>
+<option value="site_admin">현장 관리자 (상황실장)</option>
+<option value="head_admin">본사 담당자</option>
+<option value="super_admin" id="optSuperAdmin">최고 관리자</option>
+</select>
+</div>
+<button type="submit" class="btn" style="width:100%; margin-top: 10px;">근무자 저장</button>
+<button type="button" id="userCancelBtn" class="btn btn-secondary" style="display: none; width: 100%; margin-top:6px;" onclick="resetUserForm()">취소</button>
+</form>
+</div>
+<div class="card">
+<h3>근무자 목록</h3>
+<div class="table-responsive">
+<table>
+<thead>
+<tr>
+<th>아이디</th>
+<th>이름</th>
+<th>부서/직급</th>
+<th>생년월일/배치일</th>
+<th>권한</th>
+<th>관리</th>
+</tr>
+</thead>
+<tbody id="userTableBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- 5. 근무 편성 달력 (조회/수정 모드 분리 및 콤보박스 디자인 개선) -->
+<div id="tab-schedules" class="tab-content" style="display:none;">
+<div class="card">
+<h3>월간 근무 편성</h3>
+<div class="form-row" style="margin-bottom: 15px; gap: 10px; flex-wrap: wrap;">
+<select id="schedSiteSelect" style="flex: 2; min-width: 200px;">
+<option value="">현장을 선택하세요</option>
+</select>
+<input type="month" id="schedMonthInput" style="flex: 1; min-width: 140px; margin:0;">
+<button type="button" class="btn btn-secondary" onclick="loadMonthlyMatrix(false)">조회</button>
+
+<!-- 모드 조절 버튼 영역 -->
+<div style="margin-left: auto; display: flex; gap: 8px;">
+<button type="button" class="btn" id="btnSchedEdit" onclick="toggleScheduleEditMode(true)">수정/편성</button>
+<button type="button" class="btn" id="btnSchedSave" style="display: none;" onclick="saveMonthlyMatrix()">월간 스케줄 저장</button>
+<button type="button" class="btn btn-secondary" id="btnSchedCancel" style="display: none;" onclick="toggleScheduleEditMode(false)">취소</button>
+</div>
+</div>
+<div class="table-responsive">
+<table class="sched-matrix-table" id="monthlyMatrixTable">
+<thead id="monthlyMatrixHead">
+<tr>
+<th colspan="35" style="padding: 15px;">상단에서 현장과 월을 선택 후 조회 버튼을 눌러주세요.</th>
+</tr>
+</thead>
+<tbody id="monthlyMatrixBody"></tbody>
+</table>
+</div>
+<!-- 근무 편성 하단 범례 표 -->
+<div class="table-responsive" style="margin-top: 15px;">
+<table class="report-legend-table">
+<tbody id="schedLegendBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- 6. 근무상황 기록부 -->
+<div id="tab-report" class="tab-content" style="display:none;">
+<div class="card no-print">
+<h3>근무상황 기록부 조회 및 PDF 출력</h3>
+<div class="form-row" style="gap: 12px; flex-wrap: wrap;">
+<select id="reportSiteSelect" style="flex: 2; min-width: 200px;">
+<option value="">현장을 선택하세요</option>
+</select>
+<input type="month" id="reportMonthInput" style="flex: 1; min-width: 150px; margin:0;">
+<button type="button" class="btn" onclick="loadStatusReport()">조회</button>
+<button type="button" class="btn btn-secondary" onclick="window.print()">PDF / 인쇄 출력</button>
+</div>
+</div>
+<div class="card report-paper" id="reportPrintArea">
+<div class="report-header">
+<div class="report-title" id="reportTitleText">상황실 근무 상황 기록부(----년 --월)</div>
+<div class="report-site-name" id="reportSiteNameText">소속 현장명</div>
+</div>
+<div class="table-responsive">
+<table class="report-table">
+<thead id="reportTableHead"></thead>
+<tbody id="reportTableBody"></tbody>
+</table>
+</div>
+<div class="table-responsive" style="margin-top: 10px;">
+<table class="report-legend-table">
+<tbody id="reportLegendBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- 7. 근태 현황 -->
+<div id="tab-attendance" class="tab-content" style="display:none;">
+<div class="card">
+<h3>근태 상세 현황 (근무 편성 스케줄 기준)</h3>
+<div class="form-row" style="margin-bottom: 15px;">
+<input type="month" id="attMonthFilter" style="flex: 1;">
+<button type="button" class="btn btn-sm" onclick="loadAttendanceDetails()">조회</button>
+</div>
+<div class="table-responsive">
+<table>
+<thead>
+<tr>
+<th>근무일</th>
+<th>근무자</th>
+<th>근무 패턴</th>
+<th>출근시간</th>
+<th>퇴근시간</th>
+<th>상태</th>
+<th>관리</th>
+</tr>
+</thead>
+<tbody id="attendanceDetailTableBody"></tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 근태 수동 보정 모달 -->
+<div id="manualEditModal" class="card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 1000; width: 90%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+  <h3>근태 기록 수정/보정</h3>
+  <form id="manualEditForm">
+    <input type="hidden" id="editLogId">
+    <input type="hidden" id="editUserId">
+    <input type="hidden" id="editSiteId">
+    <input type="hidden" id="editWorkDate">
+
+    <div style="margin-bottom: 12px; padding: 10px; background: #f1f5f9; border-radius: 6px;">
+      <div style="font-size: 0.8rem; color: #64748b;">대상 및 근무 정보</div>
+      <strong id="modalTargetInfo" style="color: #4338ca; font-size: 0.95rem;"></strong>
+    </div>
+
+    <label style="font-size:0.8rem; font-weight:600; display:block; margin-top:8px;">근태 상태 구분 선택:</label>
+    <select id="editStatusType" style="width:100%; margin-bottom:12px;" onchange="handleStatusChange()">
+      <option value="정상">정상 (정시 출/퇴근 세팅)</option>
+      <option value="출근">출근 (출근시간만 세팅)</option>
+      <option value="지각">지각 (출근시간만 조정 가능)</option>
+      <option value="조기퇴근">조기퇴근 (퇴근시간만 조정 가능)</option>
+      <option value="결근">결근 (시간 초기화)</option>
+      <option value="미출근">미출근 (시간 초기화)</option>
+    </select>
+
+    <label style="font-size:0.8rem; font-weight:600; display:block; margin-top:8px;">출근 시간:</label>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span id="labelCheckInDate" style="font-size:0.85rem; font-weight:bold; color:#475569; background:#f1f5f9; padding:8px; border-radius:4px; min-width:95px; text-align:center;">-</span>
+      <input type="time" id="editCheckInTime" style="flex: 1; margin:0;">
+    </div>
+
+    <label style="font-size:0.8rem; font-weight:600; display:block; margin-top:8px;">퇴근 시간:</label>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span id="labelCheckOutDate" style="font-size:0.85rem; font-weight:bold; color:#475569; background:#f1f5f9; padding:8px; border-radius:4px; min-width:95px; text-align:center;">-</span>
+      <input type="time" id="editCheckOutTime" style="flex: 1; margin:0;">
+    </div>
+
+    <div style="display: flex; gap: 8px; margin-top: 18px;">
+      <button type="submit" class="btn" style="flex: 1;">보정 저장</button>
+      <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="closeManualEditModal()">닫기</button>
+    </div>
+  </form>
+</div>
+
+<script>
+let currentUser = null;
+let currentAttendanceLogs = [];
+let isScheduleEditMode = false; // 근무편성 수정모드 여부
+let lastMatrixData = null; // 최신 조회된 데이터 저장
+
+window.onload = async () => {
+  const now = new Date();
+  const yyyyMM = now.toISOString().substring(0, 7);
+  document.getElementById('schedMonthInput').value = yyyyMM;
+  document.getElementById('reportMonthInput').value = yyyyMM;
+  document.getElementById('attMonthFilter').value = yyyyMM;
+  await checkAuth();
+};
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/user/me');
+    if (res.status === 401) return location.href = '/login';
+    currentUser = await res.json();
+    document.getElementById('userName').innerText = currentUser.name || '사용자';
+    const roleMap = {
+      'super_admin': '최고 관리자',
+      'head_admin': '본사 담당자',
+      'site_admin': '현장 관리자',
+      'worker': '일반 근무자'
+    };
+    document.getElementById('userRole').innerText = roleMap[currentUser.role] || '근무자';
+    document.getElementById('userSiteInfo').innerText = currentUser.site_name ? `소속 현장: ${currentUser.site_name}` : "";
+
+    const superAdminOpt = document.getElementById('optSuperAdmin');
+    if (superAdminOpt && currentUser.role !== 'super_admin') {
+      superAdminOpt.remove();
+    }
+
+    if (currentUser.role === 'worker') {
+      document.querySelectorAll('.mgr-only, .head-super-only').forEach(el => el.style.display = 'none');
+    } else if (currentUser.role === 'site_admin') {
+      document.querySelectorAll('.head-super-only').forEach(el => el.style.display = 'none');
+    } else if (currentUser.role === 'super_admin') {
+      document.getElementById('tab-btn-user').style.display = 'none';
+      switchTab('dashboard');
+      return;
+    }
+    renderTodaySchedule(currentUser);
+    loadUserAttendanceLogs();
+  } catch (err) {
+    console.error("Auth error:", err);
+  }
+}
+
+// 탭 이동 시 무조건 새로고침 데이터를 불러오도록 처리
+function switchTab(tabName) {
+  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+  const targetBtn = document.getElementById(`tab-btn-${tabName}`);
+  if (targetBtn) targetBtn.classList.add('active');
+  document.getElementById(`tab-${tabName}`).style.display = 'block';
+
+  if (tabName === 'user') { checkAuth(); loadUserAttendanceLogs(); }
+  if (tabName === 'dashboard') loadDashboard();
+  if (tabName === 'sites') loadSites();
+  if (tabName === 'users') loadUsers();
+  if (tabName === 'schedules') loadSchedulePage();
+  if (tabName === 'report') loadReportPage();
+  if (tabName === 'attendance') loadAttendanceDetails();
+}
+
+function searchAddress() {
+  new daum.Postcode({
+    oncomplete: function(data) {
+      const fullAddr = data.address;
+      document.getElementById('siteAddress').value = fullAddr;
+      fetch(`https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(fullAddr)}`, {
+        headers: { 'Authorization': 'KakaoAK 1d76378413a968600083296068213898' }
+      })
+      .then(res => res.json())
+      .then(resData => {
+        if (resData.documents && resData.documents.length > 0) {
+          document.getElementById('siteLat').value = resData.documents[0].y;
+          document.getElementById('siteLng').value = resData.documents[0].x;
+        }
+      })
+      .catch(() => { document.getElementById('siteLat').focus(); });
+    }
+  }).open();
+}
+
+function renderTodaySchedule(info) {
+  const container = document.getElementById('todayScheduleInfo');
+  if (!info.pattern_name) {
+    container.innerHTML = '<p style="color:#64748b;">오늘 배정된 근무 스케줄이 없습니다.</p>';
+    return;
+  }
+  container.innerHTML = `
+    <p style="margin: 4px 0;"><strong>배정 현장:</strong> ${info.site_name || '-'}</p>
+    <p style="margin: 4px 0;"><strong>근무 패턴:</strong> ${info.pattern_name} (${info.start_time}~${info.end_time}${info.is_overnight ? ' [익일]' : ''})</p>
+    <p style="margin: 4px 0;"><strong>출근 상태:</strong> <span class="badge ${info.attendance_status === '정상' || info.attendance_status === '출근' ? 'badge-success' : 'badge-warning'}">${info.attendance_status || '미출근'}</span></p>`;
+}
+
+async function registerAttendance(type) {
+  if (!navigator.geolocation) return alert('GPS 기능을 지원하지 않는 브라우저입니다.');
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, lat: pos.coords.latitude, lng: pos.coords.longitude })
+    });
+    const data = await res.json();
+    alert(data.message);
+    checkAuth();
+  }, () => alert('위치 정보(GPS)를 활성화해 주세요.'));
+}
+
+async function loadUserAttendanceLogs() {
+  const month = new Date().toISOString().substring(0, 7);
+  const res = await fetch(`/api/user/attendance-logs?month=${month}`);
+  const logs = await res.json();
+  const tbody = document.getElementById('userAttendanceLogs');
+  tbody.innerHTML = (logs || []).map(l => `
+    <tr>
+      <td>${l.work_date}</td>
+      <td>${l.check_in_time ? new Date(l.check_in_time).toLocaleTimeString([], { hour:'2-digit', minute: '2-digit'}) : '-'}</td>
+      <td>${l.check_out_time ? new Date(l.check_out_time).toLocaleTimeString([], { hour:'2-digit', minute: '2-digit'}) : '-'}</td>
+      <td><span class="badge ${l.status === '정상' || l.status === '출근' ? 'badge-success' : 'badge-danger'}">${l.status}</span></td>
+    </tr>`).join('');
+}
+
+async function loadDashboard() {
+  const res = await fetch('/api/admin/dashboard');
+  const data = await res.json();
+  document.getElementById('dashTarget').innerText = data.target || 0;
+  document.getElementById('dashCompleted').innerText = data.completed || 0;
+  document.getElementById('dashLate').innerText = data.late || 0;
+}
+
+async function loadSites() {
+  const res = await fetch('/api/admin/sites');
+  const sites = await res.json();
+  const tbody = document.getElementById('siteTableBody');
+  tbody.innerHTML = (sites || []).map(s => `
+    <tr>
+      <td><strong>${s.name}</strong></td>
+      <td>${s.address}</td>
+      <td style="font-size:0.8rem; color:#64748b;">${s.latitude}, ${s.longitude}</td>
+      <td>${s.patterns.length}개</td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick='editSite(${JSON.stringify(s)})'>수정</button>
+        ${currentUser.role === 'super_admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">삭제</button>` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+function addPatternInput(p = {}) {
+  const div = document.createElement('div');
+  div.className = 'pattern-item';
+  div.innerHTML = `
+    <div class="form-row">
+      <input type="text" class="p-name" placeholder="패턴명" value="${p.pattern_name || ''}" required style="flex:1;">
+      <label class="checkbox-label"><input type="checkbox" class="p-overnight" ${p.is_overnight ? 'checked' : ''}> 익일퇴근</label>
+    </div>
+    <div class="form-row">
+      <input type="time" class="p-start" value="${p.start_time || ''}" required style="flex: 1;">
+      <input type="time" class="p-end" value="${p.end_time || ''}" required style="flex: 1;">
+      <input type="number" class="p-rest" placeholder="휴게(분)" value="${p.rest_time || 0}" style="width:80px;">
+      <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">X</button>
+    </div>`;
+  document.getElementById('patternList').appendChild(div);
+}
+
+document.getElementById('siteForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const patterns = [];
+  document.querySelectorAll('.pattern-item').forEach(item => {
+    patterns.push({
+      name: item.querySelector('.p-name').value,
+      is_overnight: item.querySelector('.p-overnight').checked,
+      start_time: item.querySelector('.p-start').value,
+      end_time: item.querySelector('.p-end').value,
+      rest_time: parseInt(item.querySelector('.p-rest').value) || 0
+    });
+  });
+  const payload = {
+    id: document.getElementById('siteId').value || null,
+    name: document.getElementById('siteName').value,
+    address: document.getElementById('siteAddress').value,
+    lat: parseFloat(document.getElementById('siteLat').value),
+    lng: parseFloat(document.getElementById('siteLng').value),
+    patterns
+  };
+  const res = await fetch('/api/admin/sites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert('현장 정보가 저장되었습니다.');
+    document.getElementById('siteForm').reset();
+    document.getElementById('siteId').value = '';
+    document.getElementById('patternList').innerHTML = '';
+    loadSites();
+  } else alert('오류: ' + data.message);
+};
+
+function editSite(site) {
+  document.getElementById('siteId').value = site.id;
+  document.getElementById('siteName').value = site.name;
+  document.getElementById('siteAddress').value = site.address;
+  document.getElementById('siteLat').value = site.latitude;
+  document.getElementById('siteLng').value = site.longitude;
+  const patternContainer = document.getElementById('patternList');
+  patternContainer.innerHTML = '';
+  site.patterns.forEach(p => addPatternInput(p));
+}
+
+async function deleteSite(id) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  await fetch('/api/admin/sites/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  loadSites();
+}
+
+async function loadUsers() {
+  const [usersRes, sitesRes] = await Promise.all([
+    fetch('/api/admin/users'),
+    fetch('/api/admin/sites')
+  ]);
+  const users = await usersRes.json();
+  const sites = await sitesRes.json();
+  document.getElementById('userSiteSelect').innerHTML = '<option value="">소속 현장 선택</option>' +
+    (sites || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  const tbody = document.getElementById('userTableBody');
+
+  tbody.innerHTML = (users || []).map(u => {
+    const isSuperTarget = (u.role === 'super_admin');
+    const canModify = (currentUser.role === 'super_admin' || !isSuperTarget);
+
+    return `
+      <tr>
+        <td><strong>${u.username}</strong></td>
+        <td>${u.name}</td>
+        <td>${u.department || '-'}/${u.position || '-'}</td>
+        <td>${u.birth_date || '-'}<br><span style="font-size:0.75rem; color:#64748b;">(배치: ${u.assigned_date || '-'})</span></td>
+        <td>${u.role === 'super_admin' ? '<strong style="color:#6366f1;">최고관리자</strong>' : (u.role === 'head_admin' ? '본사 담당자' : (u.role === 'site_admin' ? '현장관리자(상황실장)' : '근무자'))}</td>
+        <td>
+        ${canModify ? `
+          <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}', '${u.username}', '${u.name}', '${u.department||''}', '${u.position||''}', '${u.site_id||''}', '${u.role}', '${u.birth_date||''}', '${u.assigned_date||''}', '${u.resigned_date||''}')">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">삭제</button>` : '<span style="font-size:0.8rem; color:#94a3b8;">수정불가</span>'}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+document.getElementById('userForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const selectedRole = document.getElementById('userRoleSelect').value;
+
+  if (selectedRole === 'super_admin' && currentUser.role !== 'super_admin') {
+    alert('최고 관리자 권한은 최고 관리자만 설정할 수 있습니다.');
+    return;
+  }
+
+  const payload = {
+    id: document.getElementById('userId').value,
+    username: document.getElementById('userUsername').value,
+    password: document.getElementById('userPassword').value,
+    name: document.getElementById('userNameInput').value,
+    department: document.getElementById('userDept').value,
+    position: document.getElementById('userPos').value,
+    site_id: document.getElementById('userSiteSelect').value || null,
+    role: selectedRole,
+    birth_date: document.getElementById('userBirthDate').value,
+    assigned_date: document.getElementById('userAssignedDate').value,
+    resigned_date: document.getElementById('userResignedDate').value,
+    isEdit: document.getElementById('isEdit').value === 'true'
+  };
+  const res = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert('근무자 정보가 저장되었습니다.');
+    resetUserForm();
+    loadUsers();
+  } else alert('실패: ' + data.message);
+};
+
+function editUser(id, username, name, dept, pos, site_id, role, birth, assigned, resigned) {
+  document.getElementById('isEdit').value = 'true';
+  document.getElementById('userId').value = id;
+  document.getElementById('userId').readOnly = true;
+  document.getElementById('userUsername').value = username;
+  document.getElementById('userNameInput').value = name;
+  document.getElementById('userDept').value = dept;
+  document.getElementById('userPos').value = pos;
+  document.getElementById('userSiteSelect').value = site_id || "";
+  document.getElementById('userRoleSelect').value = role;
+  document.getElementById('userBirthDate').value = birth;
+  document.getElementById('userAssignedDate').value = assigned;
+  document.getElementById('userResignedDate').value = resigned;
+  document.getElementById('userFormTitle').innerText = '근무자 정보 수정';
+  document.getElementById('userCancelBtn').style.display = 'block';
+}
+
+function resetUserForm() {
+  document.getElementById('userForm').reset();
+  document.getElementById('isEdit').value = 'false';
+  document.getElementById('userId').readOnly = false;
+  document.getElementById('userFormTitle').innerText = '근무자 등록';
+  document.getElementById('userCancelBtn').style.display = 'none';
+}
+
+async function deleteUser(id) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  const res = await fetch('/api/admin/users/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  const data = await res.json();
+  if (data.success) loadUsers();
+  else alert(data.message);
+}
+
+// -------------------------------------------------------------
+// [근무 편성] 조회 / 수정 모드 및 깔끔한 셀 렌더링
+// -------------------------------------------------------------
+async function loadSchedulePage() {
+  const res = await fetch('/api/admin/sites');
+  const sites = await res.json();
+  const siteSelect = document.getElementById('schedSiteSelect');
+  siteSelect.innerHTML = '<option value="">현장을 선택하세요</option>' +
+    (sites || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  if (currentUser.site_id) {
+    siteSelect.value = currentUser.site_id;
+  }
+  loadMonthlyMatrix(false); // 처음에는 읽기 모드로 로드
+}
+
+function toggleScheduleEditMode(editMode) {
+  isScheduleEditMode = editMode;
+  document.getElementById('btnSchedEdit').style.display = editMode ? 'none' : 'inline-block';
+  document.getElementById('btnSchedSave').style.display = editMode ? 'inline-block' : 'none';
+  document.getElementById('btnSchedCancel').style.display = editMode ? 'inline-block' : 'none';
+  
+  if (lastMatrixData) {
+    renderMonthlyMatrixTable(lastMatrixData);
+  } else {
+    loadMonthlyMatrix(editMode);
+  }
+}
+
+async function loadMonthlyMatrix(forceEditMode = isScheduleEditMode) {
+  const siteId = document.getElementById('schedSiteSelect').value;
+  const yearMonth = document.getElementById('schedMonthInput').value;
+  if (!siteId || !yearMonth) return;
+
+  isScheduleEditMode = forceEditMode;
+  document.getElementById('btnSchedEdit').style.display = isScheduleEditMode ? 'none' : 'inline-block';
+  document.getElementById('btnSchedSave').style.display = isScheduleEditMode ? 'inline-block' : 'none';
+  document.getElementById('btnSchedCancel').style.display = isScheduleEditMode ? 'inline-block' : 'none';
+
+  const res = await fetch(`/api/admin/schedules/matrix-monthly?site_id=${siteId}&year_month=${yearMonth}`);
+  lastMatrixData = await res.json();
+  renderMonthlyMatrixTable(lastMatrixData);
+}
+
+function renderMonthlyMatrixTable(data) {
+  const yearMonth = document.getElementById('schedMonthInput').value;
+  const thead = document.getElementById('monthlyMatrixHead');
+  const tbody = document.getElementById('monthlyMatrixBody');
+  const legendBody = document.getElementById('schedLegendBody');
+  thead.innerHTML = "";
+  tbody.innerHTML = "";
+  legendBody.innerHTML = "";
+
+  if (!data.patterns || data.patterns.length === 0) {
+    thead.innerHTML = '<tr><td colspan="35" style="padding:20px; text-align:center; color:#ef4444">등록된 근무 패턴이 없습니다. 현장 관리 메뉴에서 패턴을 먼저 등록해 주세요.</td></tr>';
+    return;
+  }
+
+  const [year, month] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+
+  // 알파벳 패턴 코드 매핑
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const patternCodeMap = {};
+  (data.patterns || []).forEach((p, idx) => {
+    patternCodeMap[p.id] = alphabet[idx % 26];
+  });
+
+  // 헤더 작성
+  let headRow1 = `<tr>
+    <th rowspan="2" style="width: 80px;">부서/직급</th>
+    <th style="width: 75px;">성명</th>
+    <th rowspan="2" style="width: 75px;">배치일자</th>
+    <th rowspan="2" style="width: 75px;">폐지일자</th>`;
+  let headRow2 = `<tr><th>생년월일</th>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    const dayName = daysOfWeek[dateObj.getDay()];
+    let colorStyle = '';
+    if (dayName === '토') colorStyle = 'color: #3b82f6;';
+    if (dayName === '일') colorStyle = 'color: #ef4444;';
+    
+    headRow1 += `<th>${d}</th>`;
+    headRow2 += `<th style="${colorStyle}">${dayName}</th>`;
+  }
+  headRow1 += `</tr>`;
+  headRow2 += `</tr>`;
+  thead.innerHTML = headRow1 + headRow2;
+
+  // 패턴 옵션 HTML (화살표 없는 콤보박스용)
+  const patternOptionsHtml = '<option value="">-</option>' +
+    data.patterns.map(p => {
+      const code = patternCodeMap[p.id];
+      return `<option value="${p.id}">${code}</option>`;
+    }).join('');
+
+  // 기존 편성 매핑
+  const schedMap = {};
+  (data.schedules || []).forEach(s => {
+    schedMap[`${s.employee_id}_${s.start_date}`] = s.pattern_id;
+  });
+
+  // 바디 작성
+  let tbodyHtml = '';
+  if (!data.employees || data.employees.length === 0) {
+    tbodyHtml = `<tr><td colspan="${4 + daysInMonth}" style="padding:20px; text-align:center;">배정 가능한 근무자가 없습니다.</td></tr>`;
+  } else {
+    data.employees.forEach((emp) => {
+      const deptPos = `${emp.department || '상황실'} ${emp.position || '대원'}`.trim();
+      let selectCells = '';
+      
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${yearMonth}-${String(d).padStart(2, '0')}`;
+        const assignedPatternId = schedMap[`${emp.id}_${dateStr}`];
+        const assignedCode = assignedPatternId ? (patternCodeMap[assignedPatternId] || '') : '';
+
+        if (isScheduleEditMode) {
+          // 수정 모드: 화살표 제거된 깔끔한 콤보박스
+          selectCells += `
+          <td rowspan="2" style="padding: 1px;">
+            <select class="sched-pattern-select matrix-select-a" data-date="${dateStr}" data-emp-id="${emp.id}">
+              ${patternOptionsHtml}
+            </select>
+          </td>`;
+        } else {
+          // 읽기 모드: 순수 텍스트 표시
+          selectCells += `
+          <td rowspan="2" style="padding: 1px;">
+            <span class="read-only-cell">${assignedCode || '-'}</span>
+          </td>`;
+        }
+      }
+
+      tbodyHtml += `
+      <tr>
+        <td rowspan="2"><strong>${deptPos}</strong></td>
+        <td style="font-weight:bold;">${emp.name}</td>
+        <td rowspan="2">${emp.assigned_date || ''}</td>
+        <td rowspan="2">${emp.resigned_date || ''}</td>
+        ${selectCells}
+      </tr>
+      <tr>
+        <td style="font-size:0.7rem; color:#475569;">${emp.birth_date || ''}</td>
+      </tr>`;
+    });
+  }
+  tbody.innerHTML = tbodyHtml;
+
+  // 수정 모드일 때 선택값 복원
+  if (isScheduleEditMode) {
+    data.employees.forEach((emp) => {
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${yearMonth}-${String(d).padStart(2, '0')}`;
+        const assignedPatternId = schedMap[`${emp.id}_${dateStr}`];
+        if (assignedPatternId) {
+          const sel = document.querySelector(`.matrix-select-a[data-emp-id="${emp.id}"][data-date="${dateStr}"]`);
+          if (sel) sel.value = assignedPatternId;
+        }
+      }
+    });
+  }
+
+  // 범례 표
+  let legendHeader = '<tr><td rowspan="2" style="width:70px; font-weight:bold; text-align:center;">범례</td>';
+  let legendBodyRow = '<tr>';
+  (data.patterns || []).forEach((p, idx) => {
+    const code = alphabet[idx % 26];
+    const timeStr = `${p.start_time} ~ ${p.is_overnight ? '익일 ' : ''}${p.end_time}`;
+    legendHeader += `<td style="font-weight:bold; text-align:center;">${code} (${p.pattern_name})</td>`;
+    legendBodyRow += `<td style="text-align:center;">${timeStr}</td>`;
+  });
+  legendHeader += '</tr>';
+  legendBodyRow += '</tr>';
+  legendBody.innerHTML = legendHeader + legendBodyRow;
+}
+
+async function saveMonthlyMatrix() {
+  const siteId = document.getElementById('schedSiteSelect').value;
+  const yearMonth = document.getElementById('schedMonthInput').value;
+  if (!siteId) return alert('현장을 선택해 주세요.');
+
+  const items = [];
+  document.querySelectorAll('.matrix-select-a').forEach(sel => {
+    if (sel.value) {
+      items.push({
+        pattern_id: sel.value,
+        work_date: sel.getAttribute('data-date'),
+        employee_id: sel.getAttribute('data-emp-id')
+      });
+    }
+  });
+
+  const res = await fetch('/api/admin/schedules/matrix-save-monthly', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ site_id: siteId, year_month: yearMonth, items })
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert(data.message);
+    toggleScheduleEditMode(false); // 저장 후 읽기 모드로 전환
+  } else alert('저장 실패: ' + data.message);
+}
+
+async function loadReportPage() {
+  const res = await fetch('/api/admin/sites');
+  const sites = await res.json();
+  const siteSelect = document.getElementById('reportSiteSelect');
+  siteSelect.innerHTML = '<option value="">현장을 선택하세요</option>' +
+    (sites || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  if (currentUser.site_id) {
+    siteSelect.value = currentUser.site_id;
+  }
+  loadStatusReport();
+}
+
+async function loadStatusReport() {
+  const siteId = document.getElementById('reportSiteSelect').value;
+  const yearMonth = document.getElementById('reportMonthInput').value;
+  if (!siteId || !yearMonth) return;
+  const [year, month] = yearMonth.split('-').map(Number);
+  document.getElementById('reportTitleText').innerText = `상황실 근무 상황 기록부 (${year}년 ${month}월)`;
+  const res = await fetch(`/api/admin/reports/work-status?site_id=${siteId}&year_month=${yearMonth}`);
+  const data = await res.json();
+  document.getElementById('reportSiteNameText').innerText = data.site_name || '-';
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+
+  let headRow1 = `<tr>
+    <th rowspan="2" style="width: 70px;">구분</th>
+    <th style="width: 70px;">성명</th>
+    <th rowspan="2" style="width: 70px;">배치 <br>일자</th>
+    <th rowspan="2" style="width:70px;">폐지<br>일자</th>`;
+  let headRow2 = `<tr><th>생년월일</th>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    const dayName = daysOfWeek[dateObj.getDay()];
+    headRow1 += `<th>${d}</th>`;
+    headRow2 += `<th>${dayName}</th>`;
+  }
+  headRow1 += `</tr>`;
+  headRow2 += `</tr>`;
+  document.getElementById('reportTableHead').innerHTML = headRow1 + headRow2;
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const patternCodeMap = {};
+  (data.patterns || []).forEach((p, idx) => {
+    patternCodeMap[p.id] = alphabet[idx % 26];
+  });
+
+  const schedMap = {};
+  (data.schedules || []).forEach(s => {
+    schedMap[`${s.employee_id}_${s.start_date}`] = {
+      code: patternCodeMap[s.pattern_id] || '',
+      endTime: s.end_time,
+      isOvernight: s.is_overnight
+    };
+  });
+
+  const logMap = {};
+  (data.attendance_logs || []).forEach(l => {
+    logMap[`${l.employee_id}_${l.work_date}`] = l;
+  });
+
+  const now = new Date();
+
+  let tbodyHtml = '';
+  if (!data.employees || data.employees.length === 0) {
+    tbodyHtml = `<tr><td colspan="${4 + daysInMonth}" style="padding:20px; text-align:center;">배정된 근무자가 없습니다.</td></tr>`;
+  } else {
+    data.employees.forEach((emp) => {
+      const deptPos = `${emp.department || '상황실'} ${emp.position || '대원'}`.trim();
+      const dateCells = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${yearMonth}-${String(d).padStart(2, '0')}`;
+        const planned = schedMap[`${emp.id}_${dateStr}`];
+        const actualLog = logMap[`${emp.id}_${dateStr}`];
+        let resultCode = '';
+
+        if (planned) {
+          const [endH, endM] = (planned.endTime || '18:00').split(':').map(Number);
+          const targetEndDate = new Date(year, month - 1, d);
+          if (planned.isOvernight) {
+            targetEndDate.setDate(targetEndDate.getDate() + 1);
+          }
+          targetEndDate.setHours(endH, endM, 0, 0);
+
+          if (actualLog) {
+            if (actualLog.status === '결근') resultCode = 'H';
+            else if (['정상', '지각', '출근', '조기퇴근'].includes(actualLog.status) || actualLog.check_in_time) {
+              resultCode = planned.code || 'A';
+            } else {
+              resultCode = (now >= targetEndDate) ? 'H' : '';
+            }
+          } else {
+            if (now >= targetEndDate) resultCode = 'H';
+          }
+        }
+
+        dateCells.push(`<td rowspan="2" style="font-weight:bold; font-size:0.85rem; vertical-align:middle; text-align:center;">${resultCode}</td>`);
+      }
+      tbodyHtml += `
+      <tr>
+        <td rowspan="2"><strong>${deptPos}</strong></td>
+        <td style="font-weight:bold;">${emp.name}</td>
+        <td rowspan="2">${emp.assigned_date || ''}</td>
+        <td rowspan="2">${emp.resigned_date || ''}</td>
+        ${dateCells.join('')}
+      </tr>
+      <tr>
+        <td style="font-size:0.7rem;">${emp.birth_date || ''}</td>
+      </tr>`;
+    });
+  }
+  document.getElementById('reportTableBody').innerHTML = tbodyHtml;
+
+  let legendHeader = '<tr><td rowspan="2" style="width:70px; font-weight:bold;">범례</td>';
+  let legendBody = '<tr>';
+  (data.patterns || []).forEach((p, idx) => {
+    const code = alphabet[idx % 26];
+    const timeStr = `${p.start_time} ~ ${p.is_overnight ? '익일 ' : ''}${p.end_time}`;
+    legendHeader += `<td style="font-weight:bold;">${code}(${p.pattern_name})</td>`;
+    legendBody += `<td>${timeStr}</td>`;
+  });
+  const defaultLegends = [
+    { code: 'G', name: '비번' },
+    { code: 'H', name: '결근' }
+  ];
+  defaultLegends.forEach(l => {
+    legendHeader += `<td style="font-weight:bold;">${l.code}</td>`;
+    legendBody += `<td>${l.name}</td>`;
+  });
+  legendHeader += '</tr>';
+  legendBody += '</tr>';
+  document.getElementById('reportLegendBody').innerHTML = legendHeader + legendBody;
+}
+
+async function loadAttendanceDetails() {
+  const month = document.getElementById('attMonthFilter').value;
+  const res = await fetch(`/api/admin/attendance/details?month=${month}`);
+  currentAttendanceLogs = await res.json();
+  const tbody = document.getElementById('attendanceDetailTableBody');
+
+  if (!currentAttendanceLogs || currentAttendanceLogs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; text-align:center;">해당 월의 근무 스케줄 및 근태 기록이 없습니다.</td></tr>';
+    return;
+  }
+
+  const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+  tbody.innerHTML = currentAttendanceLogs.map((l, index) => {
+    const formatTimeDisplay = (timeStr) => {
+      if (!timeStr) return '-';
+      if (timeStr.includes('T') || timeStr.includes('Z')) {
+        return new Date(timeStr).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit'});
+      }
+      const parts = timeStr.split(' ');
+      if (parts.length >= 2) return parts[1].substring(0, 5);
+      return timeStr;
+    };
+
+    const inStr = formatTimeDisplay(l.check_in_time);
+    const outStr = formatTimeDisplay(l.check_out_time);
+    let statusText = l.log_status || '미출근';
+    let badgeClass = 'badge-secondary';
+
+    if (l.log_status === '정상') badgeClass = 'badge-success';
+    else if (l.log_status === '출근') badgeClass = 'badge-info';
+    else if (l.log_status === '지각' || l.log_status === '조기퇴근') badgeClass = 'badge-warning';
+    else if (l.log_status === '결근') badgeClass = 'badge-danger';
+
+    const isEditableDate = l.work_date <= todayStr;
+    const canEdit = (currentUser.role === 'super_admin' || currentUser.role === 'head_admin');
+
+    return `
+      <tr>
+        <td>${l.work_date}</td>
+        <td><strong>${l.employee_name}</strong></td>
+        <td>${l.pattern_name} (${l.start_time}~${l.end_time})</td>
+        <td>${inStr}</td>
+        <td>${outStr}</td>
+        <td><span class="badge ${badgeClass}">${statusText}</span></td>
+        <td>
+        ${canEdit ? `
+          <button class="btn btn-secondary btn-sm" ${!isEditableDate ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} onclick="openManualEditModal(${index})">수정/보정</button>` : '<span style="font-size:0.8rem; color:#94a3b8;">조회전용</span>'}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function openManualEditModal(index) {
+  const log = currentAttendanceLogs[index];
+  if (!log) return;
+
+  currentEditingLog = log;
+
+  document.getElementById('editLogId').value = log.log_id || '';
+  document.getElementById('editUserId').value = log.employee_id;
+  document.getElementById('editSiteId').value = log.site_id;
+  document.getElementById('editWorkDate').value = log.work_date;
+
+  document.getElementById('labelCheckInDate').innerText = log.work_date;
+
+  let outDateStr = log.work_date;
+  if (log.is_overnight) {
+    const d = new Date(log.work_date);
+    d.setDate(d.getDate() + 1);
+    outDateStr = d.toISOString().substring(0, 10);
+  }
+  document.getElementById('labelCheckOutDate').innerText = outDateStr;
+
+  document.getElementById('modalTargetInfo').innerText = `[${log.work_date}] ${log.employee_name} (${log.pattern_name})`;
+
+  const statusVal = log.log_status || '정상';
+  document.getElementById('editStatusType').value = statusVal;
+
+  handleStatusChange();
+
+  document.getElementById('manualEditModal').style.display = 'block';
+}
+
+function handleStatusChange() {
+  if (!currentEditingLog) return;
+  
+  const status = document.getElementById('editStatusType').value;
+  const inTimeInput = document.getElementById('editCheckInTime');
+  const outTimeInput = document.getElementById('editCheckOutTime');
+
+  const log = currentEditingLog;
+
+  const extractHHmm = (isoOrTimeStr, defaultTime) => {
+    if (!isoOrTimeStr) return defaultTime || "";
+    if (isoOrTimeStr.includes('T') || isoOrTimeStr.includes(' ')) {
+      const parts = isoOrTimeStr.split(/[T ]/);
+      return parts[1] ? parts[1].substring(0, 5) : defaultTime;
+    }
+    return isoOrTimeStr.substring(0, 5);
+  };
+
+  inTimeInput.removeAttribute('min');
+  inTimeInput.removeAttribute('max');
+  outTimeInput.removeAttribute('min');
+  outTimeInput.removeAttribute('max');
+
+  if (status === '정상') {
+    inTimeInput.value = log.start_time;
+    outTimeInput.value = log.end_time;
+    inTimeInput.disabled = true;
+    outTimeInput.disabled = true;
+  } else if (status === '출근') {
+    inTimeInput.value = log.start_time;
+    outTimeInput.value = "";
+    inTimeInput.disabled = true;
+    outTimeInput.disabled = true;
+  } else if (status === '미출근' || status === '결근') {
+    inTimeInput.value = "";
+    outTimeInput.value = "";
+    inTimeInput.disabled = true;
+    outTimeInput.disabled = true;
+  } else if (status === '지각') {
+    inTimeInput.value = extractHHmm(log.check_in_time, log.start_time);
+    outTimeInput.value = log.end_time;
+    inTimeInput.disabled = false;
+    outTimeInput.disabled = true;
+    inTimeInput.min = log.start_time;
+  } else if (status === '조기퇴근') {
+    inTimeInput.value = log.start_time;
+    outTimeInput.value = extractHHmm(log.check_out_time, log.end_time);
+    inTimeInput.disabled = true;
+    outTimeInput.disabled = false;
+    outTimeInput.max = log.end_time;
+  }
+}
+
+function closeManualEditModal() {
+  document.getElementById('manualEditModal').style.display = 'none';
+  currentEditingLog = null;
+}
+
+document.getElementById('manualEditForm').onsubmit = async (e) => {
+  e.preventDefault();
+  if (!currentEditingLog) return;
+
+  const statusType = document.getElementById('editStatusType').value;
+  const workDate = document.getElementById('editWorkDate').value;
+  const inTime = document.getElementById('editCheckInTime').value;
+  const outTime = document.getElementById('editCheckOutTime').value;
+
+  const inDateStr = document.getElementById('labelCheckInDate').innerText;
+  const outDateStr = document.getElementById('labelCheckOutDate').innerText;
+
+  if (statusType === '지각') {
+    if (!inTime) return alert('지각 출근 시간을 입력해 주세요.');
+    if (inTime < currentEditingLog.start_time) return alert(`지각 출근 시간은 정시 출근 시간(${currentEditingLog.start_time})보다 이전일 수 없습니다.`);
+  }
+
+  if (statusType === '조기퇴근') {
+    if (!outTime) return alert('조기 퇴근 시간을 입력해 주세요.');
+    if (outTime > currentEditingLog.end_time) return alert(`조기 퇴근 시간은 정시 퇴근 시간(${currentEditingLog.end_time})보다 이후일 수 없습니다.`);
+  }
+
+  const fullCheckIn = inTime ? `${inDateStr}T${inTime}` : null;
+  const fullCheckOut = outTime ? `${outDateStr}T${outTime}` : null;
+
+  const payload = {
+    log_id: document.getElementById('editLogId').value || null,
+    employee_id: document.getElementById('editUserId').value,
+    site_id: document.getElementById('editSiteId').value,
+    work_date: workDate,
+    check_in_time: fullCheckIn,
+    check_out_time: fullCheckOut,
+    status_type: statusType
+  };
+
+  const res = await fetch('/api/admin/attendance/manual-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (data.success) {
+    alert('근태 정보가 저장되었습니다.');
+    closeManualEditModal();
+    loadAttendanceDetails();
+    if (typeof loadStatusReport === 'function') loadStatusReport();
+    loadUserAttendanceLogs();
+  } else {
+    alert('오류: ' + data.message);
+  }
+};
+</script>
+</body>
+</html>
