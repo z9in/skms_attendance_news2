@@ -496,7 +496,7 @@ if (now < minAllowedTime) {
   });
 }
 
-      const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+      // const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
 
       if (now < minAllowedTime) {
         return res.json({ 
