@@ -474,9 +474,27 @@ app.post('/api/attendance', isAuthenticated, (req, res) => {
       const dist = getDistance(lat, lng, row.latitude, row.longitude);
       if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
 
-      const [pStartH, pStartM] = row.start_time.split(':').map(Number);
-      const scheduledStartTime = new Date(now);
-      scheduledStartTime.setHours(pStartH, pStartM, 0, 0);
+      // const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+      // const scheduledStartTime = new Date(now);
+      // scheduledStartTime.setHours(pStartH, pStartM, 0, 0);
+
+      // 기존 코드 대체 영역
+const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+
+// YYYY-MM-DD HH:mm:ss 형식으로 한국 시간 기준 Date 객체 생성
+const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
+
+// 10분 전 시간 계산
+const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+
+if (now < minAllowedTime) {
+  // 보기 편하게 24시간제(HH:mm) 또는 한국어로 명확히 출력
+  const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+  return res.json({ 
+    success: false, 
+    message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
+  });
+}
 
       const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
 
