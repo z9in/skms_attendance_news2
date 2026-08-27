@@ -493,20 +493,76 @@ function renderTodaySchedule(info) {
     <p style="margin: 4px 0;"><strong>출근 상태:</strong> <span class="badge ${info.attendance_status === '정상' || info.attendance_status === '출근' ? 'badge-success' : 'badge-warning'}">${info.attendance_status || '미출근'}</span></p>`;
 }
 
+// async function registerAttendance(type) {
+//   if (!navigator.geolocation) return alert('GPS 기능을 지원하지 않는 브라우저입니다.');
+//   navigator.geolocation.getCurrentPosition(async (pos) => {
+//     const res = await fetch('/api/attendance', {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ type, lat: pos.coords.latitude, lng: pos.coords.longitude })
+//     });
+//     const data = await res.json();
+//     alert(data.message);
+//     checkAuth();
+//   }, () => alert('위치 정보(GPS)를 활성화해 주세요.'));
+// }
+
+  // 수정
 async function registerAttendance(type) {
   if (!navigator.geolocation) return alert('GPS 기능을 지원하지 않는 브라우저입니다.');
-  navigator.geolocation.getCurrentPosition(async (pos) => {
+
+  // 1. 클릭된 버튼 요소 타깃팅 (event.target) 및 중복 클릭 검사
+  const btn = event ? event.target : null;
+  if (btn && btn.disabled) return;
+
+  // 2. 버튼 비활성화 및 상태 변경
+  let originalText = "";
+  if (btn) {
+    btn.disabled = true;
+    originalText = btn.innerText;
+    btn.innerText = "처리 중...";
+  }
+
+  try {
+    // 3. 위치 정보 가져오기 (Promise화)
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 5000
+      });
+    });
+
+    // 4. 서버 API 호출
     const res = await fetch('/api/attendance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, lat: pos.coords.latitude, lng: pos.coords.longitude })
     });
+
     const data = await res.json();
     alert(data.message);
     checkAuth();
-  }, () => alert('위치 정보(GPS)를 활성화해 주세요.'));
-}
 
+  } catch (err) {
+    // GPS 실패 또는 네트워크 에러 예외 처리
+    if (err.code !== undefined) {
+      alert('위치 정보(GPS)를 활성화해 주세요.');
+    } else {
+      alert('처리 중 오류가 발생했습니다.');
+    }
+  } finally {
+    // 5. 작업 완료 후 버튼 복구
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+}
+  
+  
+  // 수정끝
+
+  
 async function loadUserAttendanceLogs() {
   const month = new Date().toISOString().substring(0, 7);
   const res = await fetch(`/api/user/attendance-logs?month=${month}`);
