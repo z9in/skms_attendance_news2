@@ -582,9 +582,23 @@ if (now < minAllowedTime) {
         finalStatus = (row.status === '지각') ? '지각' : '정상';
       }
 
-      db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ?',
-        [now.toISOString(), finalStatus, row.id], () => res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` }));
-    });
+    //   db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ?',
+    //     [now.toISOString(), finalStatus, row.id], () => res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` }));
+    // });
+
+    //수정
+      // check_out_time IS NULL 조건을 추가하여 이미 퇴근 처리된 기록은 중복 수정되지 않도록 방어
+      db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ? AND check_out_time IS NULL',
+        [now.toISOString(), finalStatus, row.id], 
+        function (err) {
+          if (err || this.changes === 0) {
+            return res.json({ success: false, message: "이미 퇴근 처리되었거나 퇴근 등록에 실패했습니다." });
+          }
+          res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` });
+        }
+      );
+    //수정끝
+      
   }
 });
 
