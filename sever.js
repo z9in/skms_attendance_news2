@@ -437,11 +437,11 @@ app.post('/api/admin/attendance/manual-edit', isAuthenticated, (req, res) => {
   }
 });
 
-// app.get('/api/user/attendance-logs', isAuthenticated, (req, res) => {
-//   const { month } = req.query;
-//   db.all('SELECT * FROM attendance_logs WHERE employee_id = ? AND work_date LIKE ?',
-//     [req.session.user.id, `${month}%`], (err, rows) => res.json(rows || []));
-// });
+app.get('/api/user/attendance-logs', isAuthenticated, (req, res) => {
+  const { month } = req.query;
+  db.all('SELECT * FROM attendance_logs WHERE employee_id = ? AND work_date LIKE ?',
+    [req.session.user.id, `${month}%`], (err, rows) => res.json(rows || []));
+});
 
 // function getDistance(lat1, lon1, lat2, lon2) {
 //   const R = 6371e3;
