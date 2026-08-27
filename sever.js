@@ -516,14 +516,36 @@ if (now < minAllowedTime) {
         status = '지각';
       }
 
-      db.get('SELECT id FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
-        if (existing) {
-          db.run('UPDATE attendance_logs SET site_id = ?, check_in_time = ?, status = ? WHERE id = ?',
-            [row.site_id, checkInISO, status, existing.id], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
-        } else {
-          db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
-            [employee_id, row.site_id, work_date, checkInISO, status], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+      // db.get('SELECT id FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+      //   if (existing) {
+      //     db.run('UPDATE attendance_logs SET site_id = ?, check_in_time = ?, status = ? WHERE id = ?',
+      //       [row.site_id, checkInISO, status, existing.id], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+      //   } else {
+      //     db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+      //       [employee_id, row.site_id, work_date, checkInISO, status], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+      //   }
+
+      //수정
+     // 기존에 이미 출근(check_in_time) 기록이 있는지 확인
+      db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+        if (err) return res.json({ success: false, message: "DB 조회 오류" });
+
+        // 이미 출근한 기록이 존재하는 경우 연타/재시도 차단
+        if (existing && existing.check_in_time) {
+          return res.json({ success: false, message: "이미 오늘 출근 등록이 완료되었습니다." });
         }
+
+        // 출근 기록이 없을 때만 신규 등록 (INSERT만 진행)
+        db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+          [employee_id, row.site_id, work_date, checkInISO, status], 
+          (err) => {
+            if (err) return res.json({ success: false, message: "출근 등록 실패" });
+            res.json({ success: true, message: `출근 등록 완료 (${status})` });
+          }
+        );
+      });
+      //수정끝
+      
       });
     });
   } else {
