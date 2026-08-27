@@ -484,24 +484,83 @@ const [pStartH, pStartM] = row.start_time.split(':').map(Number);
 // YYYY-MM-DD HH:mm:ss 형식으로 한국 시간 기준 Date 객체 생성
 const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
 
-// 10분 전 시간 계산
-const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+// // 10분 전 시간 계산
+// const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
 
-if (now < minAllowedTime) {
-  // 보기 편하게 24시간제(HH:mm) 또는 한국어로 명확히 출력
-  const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
-  return res.json({ 
-    success: false, 
-    message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
-  });
-}
+// if (now < minAllowedTime) {
+//   // 보기 편하게 24시간제(HH:mm) 또는 한국어로 명확히 출력
+//   const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+//   return res.json({ 
+//     success: false, 
+//     message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
+//   });
+// }
 
-      // const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+//       const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
 
+//       if (now < minAllowedTime) {
+//         return res.json({ 
+//           success: false, 
+//           message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${minAllowedTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}부터 등록 가능)` 
+//         });
+//       }
+
+//       let checkInISO = "";
+//       let status = "";
+
+//       if (now >= minAllowedTime && now <= scheduledStartTime) {
+//         checkInISO = scheduledStartTime.toISOString();
+//         status = '출근';
+//       } else {
+//         checkInISO = now.toISOString();
+//         status = '지각';
+//       }
+
+//       // db.get('SELECT id FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+//       //   if (existing) {
+//       //     db.run('UPDATE attendance_logs SET site_id = ?, check_in_time = ?, status = ? WHERE id = ?',
+//       //       [row.site_id, checkInISO, status, existing.id], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+//       //   } else {
+//       //     db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+//       //       [employee_id, row.site_id, work_date, checkInISO, status], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+//       //   }
+
+//       //수정
+//      // 기존에 이미 출근(check_in_time) 기록이 있는지 확인
+//       db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+//         if (err) return res.json({ success: false, message: "DB 조회 오류" });
+
+//         // 이미 출근한 기록이 존재하는 경우 연타/재시도 차단
+//         if (existing && existing.check_in_time) {
+//           return res.json({ success: false, message: "이미 오늘 출근 등록이 완료되었습니다." });
+//         }
+
+//         // 출근 기록이 없을 때만 신규 등록 (INSERT만 진행)
+//         db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+//           [employee_id, row.site_id, work_date, checkInISO, status], 
+//           (err) => {
+//             if (err) return res.json({ success: false, message: "출근 등록 실패" });
+//             res.json({ success: true, message: `출근 등록 완료 (${status})` });
+//           }
+//         );
+//       });
+//       //수정끝
+      
+//       });
+//     });
+//신규코드
+      const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+      
+      // 1. 한국 시간 기준(KST)으로 시작 시간 및 최소 허용 시간 계산
+      const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
+      const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+
+      // 2. 출근 가능 시간 검사
       if (now < minAllowedTime) {
+        const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
         return res.json({ 
           success: false, 
-          message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${minAllowedTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}부터 등록 가능)` 
+          message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
         });
       }
 
@@ -516,26 +575,14 @@ if (now < minAllowedTime) {
         status = '지각';
       }
 
-      // db.get('SELECT id FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
-      //   if (existing) {
-      //     db.run('UPDATE attendance_logs SET site_id = ?, check_in_time = ?, status = ? WHERE id = ?',
-      //       [row.site_id, checkInISO, status, existing.id], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
-      //   } else {
-      //     db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
-      //       [employee_id, row.site_id, work_date, checkInISO, status], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
-      //   }
-
-      //수정
-     // 기존에 이미 출근(check_in_time) 기록이 있는지 확인
+      // 3. 중복 출근 체크 및 등록
       db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
         if (err) return res.json({ success: false, message: "DB 조회 오류" });
 
-        // 이미 출근한 기록이 존재하는 경우 연타/재시도 차단
         if (existing && existing.check_in_time) {
           return res.json({ success: false, message: "이미 오늘 출근 등록이 완료되었습니다." });
         }
 
-        // 출근 기록이 없을 때만 신규 등록 (INSERT만 진행)
         db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
           [employee_id, row.site_id, work_date, checkInISO, status], 
           (err) => {
@@ -544,10 +591,13 @@ if (now < minAllowedTime) {
           }
         );
       });
-      //수정끝
+    }); // <- 470번대 줄의 첫 번째 db.get을 닫는 괄호
+  } else {
+    // 퇴근 처리 영역
+//신규코드 끝
+    
+
       
-      });
-    });
   } else {
     // 퇴근 처리 영역
     const query = `
