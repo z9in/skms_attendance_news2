@@ -587,7 +587,7 @@ if (now < minAllowedTime) {
     // });
 
     //수정
-      // check_out_time IS NULL 조건을 추가하여 이미 퇴근 처리된 기록은 중복 수정되지 않도록 방어
+     // check_out_time IS NULL 조건으로 퇴근 연타 및 중복 수정 방지
       db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ? AND check_out_time IS NULL',
         [now.toISOString(), finalStatus, row.id], 
         function (err) {
@@ -597,7 +597,6 @@ if (now < minAllowedTime) {
           res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` });
         }
       );
-    //수정끝
       
   }
 });
