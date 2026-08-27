@@ -549,7 +549,7 @@ const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, 
 //       });
 //     });
 //신규코드
-      const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+      // const [pStartH, pStartM] = row.start_time.split(':').map(Number);
       
       // 1. 한국 시간 기준(KST)으로 시작 시간 및 최소 허용 시간 계산
       const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
