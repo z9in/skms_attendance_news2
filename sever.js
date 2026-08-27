@@ -437,21 +437,232 @@ app.post('/api/admin/attendance/manual-edit', isAuthenticated, (req, res) => {
   }
 });
 
-app.get('/api/user/attendance-logs', isAuthenticated, (req, res) => {
-  const { month } = req.query;
-  db.all('SELECT * FROM attendance_logs WHERE employee_id = ? AND work_date LIKE ?',
-    [req.session.user.id, `${month}%`], (err, rows) => res.json(rows || []));
-});
+// app.get('/api/user/attendance-logs', isAuthenticated, (req, res) => {
+//   const { month } = req.query;
+//   db.all('SELECT * FROM attendance_logs WHERE employee_id = ? AND work_date LIKE ?',
+//     [req.session.user.id, `${month}%`], (err, rows) => res.json(rows || []));
+// });
 
-function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// function getDistance(lat1, lon1, lat2, lon2) {
+//   const R = 6371e3;
+//   const φ1 = lat1 * Math.PI / 180;
+//   const φ2 = lat2 * Math.PI / 180;
+//   const Δφ = (lat2 - lat1) * Math.PI / 180;
+//   const Δλ = (lon2 - lon1) * Math.PI / 180;
+//   const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+//   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+// }
+
+// app.post('/api/attendance', isAuthenticated, (req, res) => {
+//   const { type, lat, lng } = req.body;
+//   const employee_id = req.session.user.id;
+//   const now = new Date();
+//   const work_date = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+//   if (type === 'in') {
+//     const query = `
+//       SELECT s.latitude, s.longitude, s.id as site_id, IFNULL(es.extra_start, wp.start_time) as start_time
+//       FROM employee_schedules es
+//       JOIN work_patterns wp ON es.pattern_id = wp.id
+//       JOIN sites s ON wp.site_id = s.id
+//       WHERE es.employee_id = ? AND ? BETWEEN es.start_date AND IFNULL(es.end_date, '9999-12-31') AND es.status = 'approved'`;
+
+//     db.get(query, [employee_id, work_date], (err, row) => {
+//       if (err) return res.json({ success: false, message: "DB 조회 오류" });
+//       if (!row) return res.json({ success: false, message: "오늘 배정된 근무지가 없습니다." });
+
+//       const dist = getDistance(lat, lng, row.latitude, row.longitude);
+//       if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
+
+//       // const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+//       // const scheduledStartTime = new Date(now);
+//       // scheduledStartTime.setHours(pStartH, pStartM, 0, 0);
+
+//       // 기존 코드 대체 영역
+// const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+
+// // YYYY-MM-DD HH:mm:ss 형식으로 한국 시간 기준 Date 객체 생성
+// const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
+
+// // // 10분 전 시간 계산
+// // const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+
+// // if (now < minAllowedTime) {
+// //   // 보기 편하게 24시간제(HH:mm) 또는 한국어로 명확히 출력
+// //   const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+// //   return res.json({ 
+// //     success: false, 
+// //     message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
+// //   });
+// // }
+
+// //       const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+
+// //       if (now < minAllowedTime) {
+// //         return res.json({ 
+// //           success: false, 
+// //           message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${minAllowedTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}부터 등록 가능)` 
+// //         });
+// //       }
+
+// //       let checkInISO = "";
+// //       let status = "";
+
+// //       if (now >= minAllowedTime && now <= scheduledStartTime) {
+// //         checkInISO = scheduledStartTime.toISOString();
+// //         status = '출근';
+// //       } else {
+// //         checkInISO = now.toISOString();
+// //         status = '지각';
+// //       }
+
+// //       // db.get('SELECT id FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+// //       //   if (existing) {
+// //       //     db.run('UPDATE attendance_logs SET site_id = ?, check_in_time = ?, status = ? WHERE id = ?',
+// //       //       [row.site_id, checkInISO, status, existing.id], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+// //       //   } else {
+// //       //     db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+// //       //       [employee_id, row.site_id, work_date, checkInISO, status], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
+// //       //   }
+
+// //       //수정
+// //      // 기존에 이미 출근(check_in_time) 기록이 있는지 확인
+// //       db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+// //         if (err) return res.json({ success: false, message: "DB 조회 오류" });
+
+// //         // 이미 출근한 기록이 존재하는 경우 연타/재시도 차단
+// //         if (existing && existing.check_in_time) {
+// //           return res.json({ success: false, message: "이미 오늘 출근 등록이 완료되었습니다." });
+// //         }
+
+// //         // 출근 기록이 없을 때만 신규 등록 (INSERT만 진행)
+// //         db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+// //           [employee_id, row.site_id, work_date, checkInISO, status], 
+// //           (err) => {
+// //             if (err) return res.json({ success: false, message: "출근 등록 실패" });
+// //             res.json({ success: true, message: `출근 등록 완료 (${status})` });
+// //           }
+// //         );
+// //       });
+// //       //수정끝
+      
+// //       });
+// //     });
+// //신규코드
+//       // const [pStartH, pStartM] = row.start_time.split(':').map(Number);
+      
+//       // 1. 한국 시간 기준(KST)으로 시작 시간 및 최소 허용 시간 계산
+//       const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
+//       const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
+
+//       // 2. 출근 가능 시간 검사
+//       if (now < minAllowedTime) {
+//         const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+//         return res.json({ 
+//           success: false, 
+//           message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
+//         });
+//       }
+
+//       let checkInISO = "";
+//       let status = "";
+
+//       if (now >= minAllowedTime && now <= scheduledStartTime) {
+//         checkInISO = scheduledStartTime.toISOString();
+//         status = '출근';
+//       } else {
+//         checkInISO = now.toISOString();
+//         status = '지각';
+//       }
+
+//       // 3. 중복 출근 체크 및 등록
+//       db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
+//         if (err) return res.json({ success: false, message: "DB 조회 오류" });
+
+//         if (existing && existing.check_in_time) {
+//           return res.json({ success: false, message: "이미 오늘 출근 등록이 완료되었습니다." });
+//         }
+
+//         db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
+//           [employee_id, row.site_id, work_date, checkInISO, status], 
+//           (err) => {
+//             if (err) return res.json({ success: false, message: "출근 등록 실패" });
+//             res.json({ success: true, message: `출근 등록 완료 (${status})` });
+//           }
+//         );
+//       });
+//     }); // <- 470번대 줄의 첫 번째 db.get을 닫는 괄호
+//   } else {
+//     // 퇴근 처리 영역
+// //신규코드 끝
+    
+
+      
+//   } else {
+//     // 퇴근 처리 영역
+//     const query = `
+//       SELECT al.id, al.work_date, al.status, s.latitude, s.longitude, wp.end_time, wp.is_overnight
+//       FROM attendance_logs al
+//       JOIN sites s ON al.site_id = s.id
+//       JOIN employee_schedules es ON al.employee_id = es.employee_id AND al.work_date = es.start_date
+//       JOIN work_patterns wp ON es.pattern_id = wp.id
+//       WHERE al.employee_id = ? AND al.check_out_time IS NULL
+//       ORDER BY al.id DESC LIMIT 1`;
+
+//     db.get(query, [employee_id], (err, row) => {
+//       if (err) return res.json({ success: false, message: "DB 조회 오류" });
+//       if (!row) return res.json({ success: false, message: "진행 중인 근무 기록이 없습니다." });
+
+//       const dist = getDistance(lat, lng, row.latitude, row.longitude);
+//       if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
+
+//       const [pEndH, pEndM] = row.end_time.split(':').map(Number);
+      
+//       // ★ 근무 시작일(work_date) 기준으로 날짜 계산 ★
+//       const scheduledEndTime = new Date(row.work_date + 'T00:00:00');
+//       if (row.is_overnight) {
+//         scheduledEndTime.setDate(scheduledEndTime.getDate() + 1); // 익일 퇴근 처리
+//       }
+//       scheduledEndTime.setHours(pEndH, pEndM, 0, 0);
+
+//       let finalStatus = row.status;
+//       if (now < scheduledEndTime) {
+//         finalStatus = '조기퇴근';
+//       } else {
+//         finalStatus = (row.status === '지각') ? '지각' : '정상';
+//       }
+
+//     //   db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ?',
+//     //     [now.toISOString(), finalStatus, row.id], () => res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` }));
+//     // });
+
+//     //수정
+//      // check_out_time IS NULL 조건으로 퇴근 연타 및 중복 수정 방지
+//       db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ? AND check_out_time IS NULL',
+//         [now.toISOString(), finalStatus, row.id], 
+//         function (err) {
+//           if (err || this.changes === 0) {
+//             return res.json({ success: false, message: "이미 퇴근 처리되었거나 퇴근 등록에 실패했습니다." });
+//           }
+//           res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` });
+//         }
+//       );
+      
+//   }
+// });
+
+// app.use((req, res) => res.redirect('/'));
+
+
+
+
+
+// app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+
+
+
+
+
 
 app.post('/api/attendance', isAuthenticated, (req, res) => {
   const { type, lat, lng } = req.body;
@@ -474,88 +685,10 @@ app.post('/api/attendance', isAuthenticated, (req, res) => {
       const dist = getDistance(lat, lng, row.latitude, row.longitude);
       if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
 
-      // const [pStartH, pStartM] = row.start_time.split(':').map(Number);
-      // const scheduledStartTime = new Date(now);
-      // scheduledStartTime.setHours(pStartH, pStartM, 0, 0);
-
-      // 기존 코드 대체 영역
-const [pStartH, pStartM] = row.start_time.split(':').map(Number);
-
-// YYYY-MM-DD HH:mm:ss 형식으로 한국 시간 기준 Date 객체 생성
-const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
-
-// // 10분 전 시간 계산
-// const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
-
-// if (now < minAllowedTime) {
-//   // 보기 편하게 24시간제(HH:mm) 또는 한국어로 명확히 출력
-//   const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
-//   return res.json({ 
-//     success: false, 
-//     message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${timeStr}부터 등록 가능)` 
-//   });
-// }
-
-//       const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
-
-//       if (now < minAllowedTime) {
-//         return res.json({ 
-//           success: false, 
-//           message: `출근 가능 시간이 아닙니다. (출근 10분 전인 ${minAllowedTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}부터 등록 가능)` 
-//         });
-//       }
-
-//       let checkInISO = "";
-//       let status = "";
-
-//       if (now >= minAllowedTime && now <= scheduledStartTime) {
-//         checkInISO = scheduledStartTime.toISOString();
-//         status = '출근';
-//       } else {
-//         checkInISO = now.toISOString();
-//         status = '지각';
-//       }
-
-//       // db.get('SELECT id FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
-//       //   if (existing) {
-//       //     db.run('UPDATE attendance_logs SET site_id = ?, check_in_time = ?, status = ? WHERE id = ?',
-//       //       [row.site_id, checkInISO, status, existing.id], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
-//       //   } else {
-//       //     db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
-//       //       [employee_id, row.site_id, work_date, checkInISO, status], () => res.json({ success: true, message: `출근 등록 완료 (${status})` }));
-//       //   }
-
-//       //수정
-//      // 기존에 이미 출근(check_in_time) 기록이 있는지 확인
-//       db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
-//         if (err) return res.json({ success: false, message: "DB 조회 오류" });
-
-//         // 이미 출근한 기록이 존재하는 경우 연타/재시도 차단
-//         if (existing && existing.check_in_time) {
-//           return res.json({ success: false, message: "이미 오늘 출근 등록이 완료되었습니다." });
-//         }
-
-//         // 출근 기록이 없을 때만 신규 등록 (INSERT만 진행)
-//         db.run('INSERT INTO attendance_logs (employee_id, site_id, work_date, check_in_time, status) VALUES (?, ?, ?, ?, ?)',
-//           [employee_id, row.site_id, work_date, checkInISO, status], 
-//           (err) => {
-//             if (err) return res.json({ success: false, message: "출근 등록 실패" });
-//             res.json({ success: true, message: `출근 등록 완료 (${status})` });
-//           }
-//         );
-//       });
-//       //수정끝
-      
-//       });
-//     });
-//신규코드
-      // const [pStartH, pStartM] = row.start_time.split(':').map(Number);
-      
-      // 1. 한국 시간 기준(KST)으로 시작 시간 및 최소 허용 시간 계산
+      const [pStartH, pStartM] = row.start_time.split(':').map(Number);
       const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, '0')}:${String(pStartM).padStart(2, '0')}:00+09:00`);
       const minAllowedTime = new Date(scheduledStartTime.getTime() - 10 * 60 * 1000);
 
-      // 2. 출근 가능 시간 검사
       if (now < minAllowedTime) {
         const timeStr = minAllowedTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
         return res.json({ 
@@ -575,7 +708,7 @@ const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, 
         status = '지각';
       }
 
-      // 3. 중복 출근 체크 및 등록
+      // 이미 출근 기록이 존재하는지 확인 (연타 및 중복 방지)
       db.get('SELECT id, check_in_time FROM attendance_logs WHERE employee_id = ? AND work_date = ?', [employee_id, work_date], (err, existing) => {
         if (err) return res.json({ success: false, message: "DB 조회 오류" });
 
@@ -591,13 +724,7 @@ const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, 
           }
         );
       });
-    }); // <- 470번대 줄의 첫 번째 db.get을 닫는 괄호
-  } else {
-    // 퇴근 처리 영역
-//신규코드 끝
-    
-
-      
+    });
   } else {
     // 퇴근 처리 영역
     const query = `
@@ -611,17 +738,15 @@ const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, 
 
     db.get(query, [employee_id], (err, row) => {
       if (err) return res.json({ success: false, message: "DB 조회 오류" });
-      if (!row) return res.json({ success: false, message: "진행 중인 근무 기록이 없습니다." });
+      if (!row) return res.json({ success: false, message: "진행 중인 근무 기록이 없거나 이미 퇴근 처리되었습니다." });
 
       const dist = getDistance(lat, lng, row.latitude, row.longitude);
       if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
 
       const [pEndH, pEndM] = row.end_time.split(':').map(Number);
-      
-      // ★ 근무 시작일(work_date) 기준으로 날짜 계산 ★
       const scheduledEndTime = new Date(row.work_date + 'T00:00:00');
       if (row.is_overnight) {
-        scheduledEndTime.setDate(scheduledEndTime.getDate() + 1); // 익일 퇴근 처리
+        scheduledEndTime.setDate(scheduledEndTime.getDate() + 1);
       }
       scheduledEndTime.setHours(pEndH, pEndM, 0, 0);
 
@@ -632,12 +757,7 @@ const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, 
         finalStatus = (row.status === '지각') ? '지각' : '정상';
       }
 
-    //   db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ?',
-    //     [now.toISOString(), finalStatus, row.id], () => res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` }));
-    // });
-
-    //수정
-     // check_out_time IS NULL 조건으로 퇴근 연타 및 중복 수정 방지
+      // check_out_time IS NULL 조건으로 중복 퇴근 방지
       db.run('UPDATE attendance_logs SET check_out_time = ?, status = ? WHERE id = ? AND check_out_time IS NULL',
         [now.toISOString(), finalStatus, row.id], 
         function (err) {
@@ -647,9 +767,11 @@ const scheduledStartTime = new Date(`${work_date}T${String(pStartH).padStart(2, 
           res.json({ success: true, message: `퇴근 등록 완료 (${finalStatus})` });
         }
       );
-      
+    });
   }
 });
 
 app.use((req, res) => res.redirect('/'));
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+app.listen(3000, () => console.log("Server running on http://localhost:3000"));
+
+
